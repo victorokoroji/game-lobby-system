@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: game-lobby-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: game-lobby
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - game-lobby-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: game-lobby-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongodb:27017/game-lobby
+      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      - mongodb
+    networks:
+      - game-lobby-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: game-lobby-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:5000/api
+      - VITE_SOCKET_URL=http://localhost:5000
+    depends_on:
+      - backend
+    networks:
+      - game-lobby-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  mongodb_data:
+
+networks:
+  game-lobby-network:
+    driver: bridge
