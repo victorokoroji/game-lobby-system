@@ -14,10 +14,7 @@ services:
       - key: JWT_SECRET
         generateValue: true # Render will generate a secure random value
       - key: CORS_ORIGIN
-        fromService:
-          type: web
-          name: game-lobby-frontend
-          property: url
+        sync: false # You'll set this manually after frontend is deployed
     healthCheckPath: /api/health
 
   # Frontend Static Site
@@ -28,15 +25,9 @@ services:
     staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: game-lobby-backend
-          property: url
+        sync: false # You'll set this manually after backend is deployed
       - key: VITE_SOCKET_URL
-        fromService:
-          type: web
-          name: game-lobby-backend
-          property: url
+        sync: false # You'll set this manually after backend is deployed
     routes:
       - type: rewrite
         source: /*
