@@ -26,6 +26,7 @@ const io = new Server(server, {
       "http://localhost:5173", // Vite dev server
       "http://localhost:3000", // Frontend container
       "http://localhost:5000", // Direct API access
+      "https://game-lobby-frontend.onrender.com", // Render Deployment
     ],
     methods: ["GET", "POST"],
     credentials: true,
