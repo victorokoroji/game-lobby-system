@@ -1,0 +1,43 @@
+services:
+  # Backend API Service
+  - type: web
+    name: game-lobby-backend
+    runtime: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false # You'll set this manually in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true # Render will generate a secure random value
+      - key: CORS_ORIGIN
+        fromService:
+          type: web
+          name: game-lobby-frontend
+          property: url
+    healthCheckPath: /api/health
+
+  # Frontend Static Site
+  - type: web
+    name: game-lobby-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: game-lobby-backend
+          property: url
+      - key: VITE_SOCKET_URL
+        fromService:
+          type: web
+          name: game-lobby-backend
+          property: url
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
