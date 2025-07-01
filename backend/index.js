@@ -19,15 +19,18 @@ dotenv.config();
 
 const app = express();
 const server = createServer(app);
+// CORS configuration - allow multiple origins
+const allowedOrigins = [
+  process.env.CORS_ORIGIN || "http://localhost:3000",
+  "http://localhost:5173", // Vite dev server
+  "http://localhost:3000", // Frontend container
+  "http://localhost:5000", // Direct API access
+  "https://game-lobby-frontend.onrender.com", // Render Deployment
+];
+
 const io = new Server(server, {
   cors: {
-    origin: [
-      process.env.CORS_ORIGIN || "http://localhost:3000",
-      "http://localhost:5173", // Vite dev server
-      "http://localhost:3000", // Frontend container
-      "http://localhost:5000", // Direct API access
-      "https://game-lobby-frontend.onrender.com", // Render Deployment
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -37,14 +40,6 @@ const io = new Server(server, {
 app.use(helmet());
 app.use(morgan("combined"));
 
-// CORS configuration - allow multiple origins
-const allowedOrigins = [
-  process.env.CORS_ORIGIN || "http://localhost:3000",
-  "http://localhost:5173", // Vite dev server
-  "http://localhost:3000", // Frontend container
-  "http://localhost:5000", // Direct API access
-  "https://game-lobby-frontend.onrender.com", // Render Deployment
-];
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -52,8 +47,10 @@ app.use(
       if (!origin) return callback(null, true);
 
       if (allowedOrigins.indexOf(origin) !== -1) {
+        console.log("Origin allowed:", origin);
         callback(null, true);
       } else {
+        console.log("Origin blocked:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
