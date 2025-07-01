@@ -58,9 +58,12 @@ A real-time multiplayer number guessing game where players join sessions, pick n
 
 ### 1. Clone and Start
 ```bash
-git clone <repository-url>
+git clone https://github.com/victorokoroji/game-lobby-system>
 cd game-lobby-system
 docker-compose up --build
+or
+npm install
+npm run dev
 ```
 
 ### 2. Access the Application
