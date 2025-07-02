@@ -1,51 +1,53 @@
-import GameSession from '../models/GameSession.js';
-import User from '../models/User.js';
-import { authenticateSocket } from '../middleware/auth.js';
+import GameSession from "../models/GameSession.js";
+import User from "../models/User.js";
+import { authenticateSocket } from "../middleware/auth.js";
 
 // Store active game timers
 const gameTimers = new Map();
 
 export const handleSocketConnection = (socket, io) => {
-  console.log('User connected:', socket.id);
+  console.log("User connected:", socket.id);
 
   // Authenticate socket connection
   authenticateSocket(socket, (err) => {
     if (err) {
-      console.log('Socket authentication failed:', err.message);
+      console.log("Socket authentication failed:", err.message);
       socket.disconnect();
       return;
     }
 
-    console.log('User authenticated:', socket.user.username);
+    console.log("User authenticated:", socket.user.username);
 
     // Join user to their personal room
     socket.join(`user_${socket.user._id}`);
 
     // Handle joining game session
-    socket.on('join_game', async (data) => {
+    socket.on("join_game", async (data) => {
       try {
         const { selectedNumber } = data;
 
         if (!selectedNumber || selectedNumber < 1 || selectedNumber > 10) {
-          socket.emit('error', { message: 'Please select a number between 1 and 10' });
+          socket.emit("error", {
+            message: "Please select a number between 1 and 10",
+          });
           return;
         }
 
         // Find or create active session
-        let session = await GameSession.findOne({ 
-          status: { $in: ['waiting', 'active'] } 
+        let session = await GameSession.findOne({
+          status: { $in: ["waiting", "active"] },
         }).sort({ createdAt: -1 });
 
         if (!session) {
           session = new GameSession({
             sessionId: `session_${Date.now()}`,
-            status: 'waiting'
+            status: "waiting",
           });
         }
 
         // Check if user already joined
         const existingPlayerIndex = session.players.findIndex(
-          player => player.userId.toString() === socket.user._id.toString()
+          (player) => player.userId.toString() === socket.user._id.toString()
         );
 
         if (existingPlayerIndex !== -1) {
@@ -54,14 +56,14 @@ export const handleSocketConnection = (socket, io) => {
         } else {
           // Add new player
           if (session.players.length >= session.maxPlayers) {
-            socket.emit('error', { message: 'Session is full' });
+            socket.emit("error", { message: "Session is full" });
             return;
           }
 
           session.players.push({
             userId: socket.user._id,
             username: socket.user.username,
-            selectedNumber
+            selectedNumber,
           });
         }
 
@@ -70,26 +72,25 @@ export const handleSocketConnection = (socket, io) => {
         // Join the game room
         socket.join(`game_${session.sessionId}`);
 
-        // Emit updated session to all players in the game
-        io.to(`game_${session.sessionId}`).emit('session_updated', {
+        // Emit updated session to all connected users (not just game participants)
+        io.emit("session_updated", {
           session: session,
-          playersCount: session.players.length
+          playersCount: session.players.length,
         });
 
         // Start game if this is the first player and session is waiting
-        if (session.status === 'waiting' && session.players.length > 0) {
+        if (session.status === "waiting" && session.players.length > 0) {
           startGameCountdown(session, io);
         }
-
       } catch (error) {
-        console.error('Error joining game:', error);
-        socket.emit('error', { message: 'Failed to join game' });
+        console.error("Error joining game:", error);
+        socket.emit("error", { message: "Failed to join game" });
       }
     });
 
     // Handle disconnect
-    socket.on('disconnect', () => {
-      console.log('User disconnected:', socket.user?.username || socket.id);
+    socket.on("disconnect", () => {
+      console.log("User disconnected:", socket.user?.username || socket.id);
     });
   });
 };
@@ -98,7 +99,7 @@ export const handleSocketConnection = (socket, io) => {
 const startGameCountdown = async (session, io) => {
   try {
     // Update session status to active
-    session.status = 'active';
+    session.status = "active";
     session.startTime = new Date();
     await session.save();
 
@@ -110,19 +111,25 @@ const startGameCountdown = async (session, io) => {
       clearInterval(gameTimers.get(session.sessionId));
     }
 
-    // Emit game started
-    io.to(gameRoom).emit('game_started', {
+    // Emit game started to all connected users (not just game participants)
+    io.emit("game_started", {
       sessionId: session.sessionId,
       duration: session.duration,
-      playersCount: session.players.length
+      playersCount: session.players.length,
+    });
+
+    // Also emit session update so all users know the session is now active
+    io.emit("session_updated", {
+      session: session,
+      playersCount: session.players.length,
     });
 
     // Start countdown timer
     const timer = setInterval(async () => {
       timeLeft--;
 
-      // Emit countdown update
-      io.to(gameRoom).emit('countdown_update', { timeLeft });
+      // Emit countdown update to all connected users
+      io.emit("countdown_update", { timeLeft });
 
       if (timeLeft <= 0) {
         clearInterval(timer);
@@ -132,9 +139,8 @@ const startGameCountdown = async (session, io) => {
     }, 1000);
 
     gameTimers.set(session.sessionId, timer);
-
   } catch (error) {
-    console.error('Error starting game countdown:', error);
+    console.error("Error starting game countdown:", error);
   }
 };
 
@@ -143,10 +149,10 @@ const endGame = async (session, io) => {
   try {
     // Generate winning number (1-10)
     const winningNumber = Math.floor(Math.random() * 10) + 1;
-    
+
     // Update session
     session.winningNumber = winningNumber;
-    session.status = 'completed';
+    session.status = "completed";
     session.endTime = new Date();
 
     // Determine winners and update player stats
@@ -171,7 +177,7 @@ const endGame = async (session, io) => {
     for (let winner of winners) {
       updatePromises.push(
         User.findByIdAndUpdate(winner.userId, {
-          $inc: { totalWins: 1, gamesPlayed: 1 }
+          $inc: { totalWins: 1, gamesPlayed: 1 },
         })
       );
     }
@@ -180,32 +186,30 @@ const endGame = async (session, io) => {
     for (let loser of losers) {
       updatePromises.push(
         User.findByIdAndUpdate(loser.userId, {
-          $inc: { totalLosses: 1, gamesPlayed: 1 }
+          $inc: { totalLosses: 1, gamesPlayed: 1 },
         })
       );
     }
 
     await Promise.all(updatePromises);
 
-    // Emit game results
-    const gameRoom = `game_${session.sessionId}`;
-    io.to(gameRoom).emit('game_ended', {
+    // Emit game results to all connected users
+    io.emit("game_ended", {
       sessionId: session.sessionId,
       winningNumber,
-      winners: winners.map(w => w.username),
+      winners: winners.map((w) => w.username),
       totalPlayers: session.players.length,
-      winnersCount: winners.length
+      winnersCount: winners.length,
     });
 
     // Schedule next game to start in 10 seconds
     setTimeout(() => {
-      io.emit('next_game_starting', { 
-        message: 'New game starting soon!',
-        countdown: 10 
+      io.emit("next_game_starting", {
+        message: "New game starting soon!",
+        countdown: 10,
       });
     }, 3000);
-
   } catch (error) {
-    console.error('Error ending game:', error);
+    console.error("Error ending game:", error);
   }
 };
